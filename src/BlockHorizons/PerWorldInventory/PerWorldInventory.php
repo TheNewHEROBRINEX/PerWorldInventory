@@ -83,7 +83,10 @@ class PerWorldInventory extends PluginBase {
 
 				foreach($contents as $level => $b64inventory) {
 					$items = [];
-					foreach($reader->readCompressed(base64_decode($b64inventory))->getListTag("ItemList") as $item_tag) {
+					/** @var CompoundTag $nbt */
+					$nbt = $reader->readCompressed(base64_decode($b64inventory));
+					/** @var CompoundTag $item_tag */
+					foreach($nbt->getListTag("ItemList") as $item_tag) {
 						$items[] = Item::nbtDeserialize($item_tag);
 					}
 
@@ -143,7 +146,7 @@ class PerWorldInventory extends PluginBase {
 	public function load(Player $player) : void {
 		$filepath = $this->base_directory . $player->getLowerCaseName() . ".dat";
 		if(file_exists($filepath)) {
-			$this->getServer()->getScheduler()->scheduleAsyncTask(new LoadInventoryTask($player, $filepath));
+			$this->getServer()->getAsyncPool()->submitTask(new LoadInventoryTask($player, $filepath));
 			$this->loading[$player->getLowerCaseName()] = true;
 		}
 	}
@@ -224,6 +227,10 @@ class PerWorldInventory extends PluginBase {
 			$tag = new CompoundTag();
 			foreach($this->loaded_inventories[$key] as $level_name => $contents) {
 				$inventory = new ListTag($level_name);
+				/**
+				 * @var int $slot
+				 * @var Item $item
+				 */
 				foreach($contents as $slot => $item) {
 					$inventory->push($item->nbtSerialize($slot));
 				}
@@ -233,7 +240,7 @@ class PerWorldInventory extends PluginBase {
 			$file_path = $this->base_directory . $key . ".dat";
 			$compressedFileContents = (new BigEndianNBTStream())->writeCompressed($tag);
 
-			$this->getServer()->getScheduler()->scheduleAsyncTask(new FileWriteTask($file_path, $compressedFileContents));
+			$this->getServer()->getAsyncPool()->submitTask(new FileWriteTask($file_path, $compressedFileContents));
 		} elseif (file_exists($this->base_directory . $key . ".dat")) {
 			unlink($this->base_directory . $key . ".dat");
 		}
